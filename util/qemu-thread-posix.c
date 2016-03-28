@@ -20,6 +20,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <sched.h>
 #ifdef __linux__
 #include <sys/syscall.h>
 #include <linux/futex.h>
@@ -453,6 +454,67 @@ static void qemu_thread_set_name(QemuThread *thread, const char *name)
 #ifdef CONFIG_PTHREAD_SETNAME_NP
     pthread_setname_np(thread->thread, name);
 #endif
+}
+
+void qemu_thread_create_pin(QemuThread *thread, const char *name,
+                       void *(*start_routine)(void*),
+                       void *arg, int mode)
+{
+    sigset_t set, oldset;
+    int err;
+    pthread_attr_t attr;
+
+    err = pthread_attr_init(&attr);
+    if (err) {
+        error_exit(err, __func__);
+    }
+    if (mode == QEMU_THREAD_DETACHED) {
+        err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        if (err) {
+            error_exit(err, __func__);
+        }
+    }
+    
+    // round-robin pin threads
+    static int current_cpu = -1;
+    static int thread_num = 0;
+    int max_cpus = 8 * sizeof(cpu_set_t);
+    int i;
+    cpu_set_t map, apply;
+    CPU_ZERO(&map);
+    sched_getaffinity(0, sizeof(cpu_set_t), &map);
+    for (i = 0; i < max_cpus; ++i) {
+        int c = (current_cpu + i + 1) % max_cpus;
+        if (CPU_ISSET(c, &map)) {
+            CPU_ZERO(&apply);
+            CPU_SET(c,&apply);
+            int ret;
+            if ((ret = pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &map))) {
+                fprintf(stderr, "Can't set thread affinity: %s\n", strerror(ret));
+                exit(1);
+            }else{
+              printf("Thread #%d has been pinned to CPU %d\n", thread_num, c);
+            }
+            current_cpu = c;
+            thread_num++;
+            break;
+        }
+    }
+
+    /* Leave signal handling to the iothread.  */
+    sigfillset(&set);
+    pthread_sigmask(SIG_SETMASK, &set, &oldset);
+    err = pthread_create(&thread->thread, &attr, start_routine, arg);
+    if (err)
+        error_exit(err, __func__);
+
+    if (name_threads) {
+        qemu_thread_set_name(thread, name);
+    }
+
+    pthread_sigmask(SIG_SETMASK, &oldset, NULL);
+
+    pthread_attr_destroy(&attr);
 }
 
 void qemu_thread_create(QemuThread *thread, const char *name,
