@@ -489,7 +489,7 @@ void qemu_thread_create_pin(QemuThread *thread, const char *name,
             CPU_ZERO(&apply);
             CPU_SET(c,&apply);
             int ret;
-            if ((ret = pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &map))) {
+            if ((ret = pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &apply))) {
                 fprintf(stderr, "Can't set thread affinity: %s\n", strerror(ret));
                 exit(1);
             }else{
