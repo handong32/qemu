@@ -395,12 +395,23 @@ void usb_register_companion(const char *masterbus, USBPort *ports[],
 
 void usb_port_location(USBPort *downstream, USBPort *upstream, int portnr)
 {
+    int ret;
     if (upstream) {
-        snprintf(downstream->path, sizeof(downstream->path), "%s.%d",
+        ret = snprintf(downstream->path, sizeof(downstream->path), "%s.%d",
                  upstream->path, portnr);
+        if(ret < 0) {
+            printf("ERROR: %s\n", __FUNCTION__);
+            exit(-1);
+        }
+
         downstream->hubcount = upstream->hubcount + 1;
     } else {
-        snprintf(downstream->path, sizeof(downstream->path), "%d", portnr);
+        ret = snprintf(downstream->path, sizeof(downstream->path), "%d", portnr);
+        if(ret < 0) {
+            printf("ERROR: %s\n", __FUNCTION__);
+            exit(-1);
+        }
+
         downstream->hubcount = 0;
     }
 }

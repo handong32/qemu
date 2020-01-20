@@ -448,7 +448,8 @@ static bool in_superpage(DisasContext *ctx, int64_t addr)
     return ((ctx->tb->flags & TB_FLAGS_USER_MODE) == 0
             && addr < 0
             && ((addr >> 41) & 3) == 2
-            && addr >> TARGET_VIRT_ADDR_SPACE_BITS == addr >> 63);
+            && true);
+            //addr >> TARGET_VIRT_ADDR_SPACE_BITS == addr >> 63);
 }
 
 static bool use_goto_tb(DisasContext *ctx, uint64_t dest)
